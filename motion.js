@@ -52,16 +52,20 @@
   }
 
 
-  /* Background circuit mind. Drawn on one canvas behind everything. */
+  /* Background: a slowly drifting neural constellation over a soft aurora.
+     Nodes connect when they come close, signals travel along the links,
+     and the network leans toward the pointer. */
   (function mind() {
+    const aur = document.createElement('div');
+    aur.className = 'aurora'; aur.setAttribute('aria-hidden', 'true');
+    aur.innerHTML = '<span></span><span></span><span></span>';
     const cv = document.createElement('canvas');
-    cv.className = 'mind';
-    cv.setAttribute('aria-hidden', 'true');
-    document.body.prepend(cv);
+    cv.className = 'mind'; cv.setAttribute('aria-hidden', 'true');
+    document.body.prepend(cv); document.body.prepend(aur);
     const ctx = cv.getContext('2d');
-    const base = document.createElement('canvas');
-    const bctx = base.getContext('2d');
-    let W = 0, H = 0, dpr = 1, nodes = [], edges = [], pulses = [], col = {}, raf = 0, last = 0, lastFire = 0, running = false;
+    let W = 0, H = 0, dpr = 1, nodes = [], pulses = [], col = {}, raf = 0, last = 0, lastFire = 0, running = false;
+    const LINK = () => (W < 700 ? 110 : 150);
+    const ptr = { x: -9999, y: -9999, on: false };
     const rnd = (a, b) => a + Math.random() * (b - a);
 
     const readColors = () => {
@@ -69,152 +73,137 @@
       const dark = root.getAttribute('data-theme') === 'dark' ||
         (root.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
       col = {
-        trace: cs.getPropertyValue('--trace').trim() || '#C9D6F1',
-        ink: cs.getPropertyValue('--brain-ink').trim() || '#001C54',
+        ink: cs.getPropertyValue(dark ? '--ink' : '--brain-ink').trim() || '#001C54',
         sig: cs.getPropertyValue('--signal').trim() || '#045CFC',
-        traceA: dark ? 0.9 : 0.75, nodeA: dark ? 0.55 : 0.22
+        link: dark ? 0.32 : 0.2, node: dark ? 0.75 : 0.5
       };
     };
-
-    // Nodes on a loose grid; traces run straight then bend 45 degrees, like the logo.
     const build = () => {
       dpr = Math.min(1.5, window.devicePixelRatio || 1);
       W = innerWidth; H = innerHeight;
-      for (const c of [cv, base]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       cv.style.width = W + 'px'; cv.style.height = H + 'px';
-      const gap = W < 700 ? 74 : 96;
-      const cols = Math.ceil(W / gap) + 1, rows = Math.ceil(H / gap) + 1;
-      const grid = [];
-      nodes = []; edges = []; pulses = [];
-      for (let r = 0; r < rows; r++) {
-        grid[r] = [];
-        for (let c = 0; c < cols; c++) {
-          if (Math.random() < 0.42) { grid[r][c] = null; continue; }
-          const n = { x: c * gap + rnd(-gap * .22, gap * .22), y: r * gap + rnd(-gap * .22, gap * .22), r: rnd(1.6, 3.2), links: [], glow: 0 };
-          grid[r][c] = n; nodes.push(n);
-        }
+      const n = Math.max(28, Math.min(95, Math.round((W * H) / 15000)));
+      nodes = []; pulses = [];
+      for (let i = 0; i < n; i++) {
+        const z = rnd(0.35, 1);
+        const ang = rnd(0, Math.PI * 2), sp = rnd(4, 11) * z;
+        nodes.push({ x: rnd(0, W), y: rnd(0, H), vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, z, r: 0.9 + z * 1.9, glow: 0, nb: [] });
       }
-      const link = (a, b) => {
-        if (!a || !b) return;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.min(Math.abs(dx), Math.abs(dy));
-        const mid = Math.abs(dx) > Math.abs(dy)
-          ? { x: b.x - Math.sign(dx) * d, y: a.y }
-          : { x: a.x, y: b.y - Math.sign(dy) * d };
-        const pts = [a, mid, b];
-        let len = 0; const seg = [];
-        for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); seg.push(l); len += l; }
-        const e = { a, b, pts, seg, len };
-        edges.push(e); a.links.push(e); b.links.push(e);
-      };
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        const n = grid[r][c]; if (!n) continue;
-        if (Math.random() < 0.7) link(n, grid[r][c + 1] || grid[r][c + 2]);
-        if (Math.random() < 0.55) link(n, grid[r + 1] && (grid[r + 1][c] || grid[r + 1][c + 1]));
-      }
-      paintBase();
-    };
-
-    const paintBase = () => {
       readColors();
-      bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      bctx.clearRect(0, 0, W, H);
-      bctx.lineWidth = 1.25; bctx.lineCap = 'round'; bctx.lineJoin = 'round';
-      bctx.strokeStyle = col.trace; bctx.globalAlpha = col.traceA;
-      bctx.beginPath();
-      for (const e of edges) { bctx.moveTo(e.pts[0].x, e.pts[0].y); bctx.lineTo(e.pts[1].x, e.pts[1].y); bctx.lineTo(e.pts[2].x, e.pts[2].y); }
-      bctx.stroke();
-      bctx.globalAlpha = col.nodeA; bctx.fillStyle = col.ink;
-      for (const n of nodes) { if (!n.links.length) continue; bctx.beginPath(); bctx.arc(n.x, n.y, n.r, 0, 7); bctx.fill(); }
-      bctx.globalAlpha = 1;
-      if (still()) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(base, 0, 0); }
     };
 
-    const pointAt = (e, t) => {
-      let d = t * e.len;
-      for (let i = 0; i < e.seg.length; i++) {
-        if (d <= e.seg[i] || i === e.seg.length - 1) {
-          const p = e.pts[i], q = e.pts[i + 1], k = e.seg[i] ? Math.min(1, d / e.seg[i]) : 1;
-          return { x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k };
-        }
-        d -= e.seg[i];
-      }
-      return e.pts[e.pts.length - 1];
-    };
     const fire = (from, depth) => {
-      if (!from || !from.links.length || pulses.length > 90) return;
-      const e = from.links[(Math.random() * from.links.length) | 0];
-      pulses.push({ e, dir: e.a === from ? 1 : -1, t: 0, speed: rnd(90, 170), depth });
+      if (!from || pulses.length > 40) return;
+      const nb = from.nb; if (!nb.length) return;
+      const to = nb[(Math.random() * nb.length) | 0];
+      pulses.push({ a: from, b: to, t: 0, speed: rnd(0.9, 1.6), depth });
       from.glow = 1;
+    };
+
+    const draw = dt => {
+      const L = LINK(), L2 = L * L;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      // Move: drift, wrap at the edges, lean gently toward the pointer.
+      for (const n of nodes) {
+        if (ptr.on) {
+          const dx = ptr.x - n.x, dy = ptr.y - n.y, d2 = dx * dx + dy * dy;
+          if (d2 < 220 * 220 && d2 > 400) { const f = 14 * n.z / Math.sqrt(d2); n.x += dx * f * dt * 0.08; n.y += dy * f * dt * 0.08; }
+        }
+        n.x += n.vx * dt; n.y += n.vy * dt;
+        if (n.x < -20) n.x = W + 20; else if (n.x > W + 20) n.x = -20;
+        if (n.y < -20) n.y = H + 20; else if (n.y > H + 20) n.y = -20;
+        n.nb.length = 0;
+      }
+      // Links: thin lines that fade in as nodes approach each other.
+      ctx.lineWidth = 1; ctx.strokeStyle = col.ink;
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+          if (d2 > L2) continue;
+          a.nb.push(b); b.nb.push(a);
+          const k = 1 - Math.sqrt(d2) / L;
+          ctx.globalAlpha = k * k * col.link * Math.min(a.z, b.z) * 1.6;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+      // Lines reach out to the pointer, as if the network is paying attention.
+      if (ptr.on) {
+        ctx.strokeStyle = col.sig;
+        for (const n of nodes) {
+          const dx = n.x - ptr.x, dy = n.y - ptr.y, d = Math.hypot(dx, dy);
+          if (d > 180) continue;
+          ctx.globalAlpha = (1 - d / 180) * 0.45;
+          ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(ptr.x, ptr.y); ctx.stroke();
+        }
+      }
+      // Signals travelling between connected nodes.
+      ctx.fillStyle = col.sig; ctx.strokeStyle = col.sig;
+      for (let i = pulses.length - 1; i >= 0; i--) {
+        const p = pulses[i];
+        const dx = p.b.x - p.a.x, dy = p.b.y - p.a.y, d = Math.hypot(dx, dy);
+        if (d > L * 1.15) { pulses.splice(i, 1); continue; }
+        p.t += (p.speed * 120 * dt) / Math.max(40, d);
+        const t = Math.min(1, p.t), tt = Math.max(0, t - 0.35);
+        const hx = p.a.x + dx * t, hy = p.a.y + dy * t;
+        ctx.lineWidth = 1.6; ctx.globalAlpha = 0.55;
+        ctx.beginPath(); ctx.moveTo(p.a.x + dx * tt, p.a.y + dy * tt); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hx, hy, 2.1, 0, 7); ctx.fill();
+        if (p.t >= 1) {
+          p.b.glow = 1; pulses.splice(i, 1);
+          if (p.depth < 5 && Math.random() < 0.7) fire(p.b, p.depth + 1);
+        }
+      }
+      // Nodes, with a soft halo when a signal passes through.
+      for (const n of nodes) {
+        ctx.fillStyle = col.ink; ctx.globalAlpha = col.node * n.z;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fill();
+        if (n.glow > 0.02) {
+          ctx.fillStyle = col.sig;
+          ctx.globalAlpha = n.glow * 0.22; ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 10 * n.glow, 0, 7); ctx.fill();
+          ctx.globalAlpha = n.glow; ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 0.6, 0, 7); ctx.fill();
+          n.glow *= Math.pow(0.08, dt);
+        }
+      }
+      ctx.globalAlpha = 1;
     };
 
     const frame = now => {
       raf = 0;
-      // About 30 frames a second is plenty for drifting signals and halves the cost.
       if (last && now - last < 31) { if (running) raf = requestAnimationFrame(frame); return; }
-      const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
-      if (now - lastFire > 520 && nodes.length) { lastFire = now; fire(nodes[(Math.random() * nodes.length) | 0], 0); }
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, cv.width, cv.height);
-      ctx.drawImage(base, 0, 0);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = col.sig; ctx.strokeStyle = col.sig; ctx.lineCap = 'round';
-      for (let i = pulses.length - 1; i >= 0; i--) {
-        const p = pulses[i];
-        p.t += (p.speed * dt) / p.e.len;
-        const head = Math.min(1, p.t), tail = Math.max(0, head - 70 / p.e.len);
-        const h = pointAt(p.e, p.dir > 0 ? head : 1 - head);
-        const tl = pointAt(p.e, p.dir > 0 ? tail : 1 - tail);
-        const m = pointAt(p.e, p.dir > 0 ? (head + tail) / 2 : 1 - (head + tail) / 2);
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(m.x, m.y); ctx.stroke();
-        ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(h.x, h.y); ctx.stroke();
-        ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(h.x, h.y, 2.4, 0, 7); ctx.fill();
-        if (p.t >= 1) {
-          const to = p.dir > 0 ? p.e.b : p.e.a;
-          to.glow = 1;
-          pulses.splice(i, 1);
-          if (p.depth < 4 && Math.random() < 0.62) fire(to, p.depth + 1);
-          if (p.depth < 2 && Math.random() < 0.25) fire(to, p.depth + 1);
-        }
-      }
-      for (const n of nodes) {
-        if (n.glow <= 0.01) continue;
-        ctx.globalAlpha = n.glow * 0.5;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 7 * n.glow, 0, 7); ctx.fill();
-        ctx.globalAlpha = n.glow; ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 0.8, 0, 7); ctx.fill();
-        n.glow *= Math.pow(0.12, dt);
-      }
-      ctx.globalAlpha = 1;
+      const dt = Math.min(0.06, (now - (last || now)) / 1000); last = now;
+      if (now - lastFire > 900 && nodes.length) { lastFire = now; fire(nodes[(Math.random() * nodes.length) | 0], 0); }
+      draw(dt);
       if (running) raf = requestAnimationFrame(frame);
     };
     const start = () => { if (running || still()) return; running = true; last = 0; raf = requestAnimationFrame(frame); };
     const stop = () => { running = false; cancelAnimationFrame(raf); raf = 0; };
 
     build();
-    requestAnimationFrame(() => cv.classList.add('on'));
-    start();
+    if (still()) draw(0); else start();
+    requestAnimationFrame(() => { cv.classList.add('on'); aur.classList.add('on'); });
 
     let rt = 0;
-    addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (Math.abs(innerWidth - W) > 40 || Math.abs(innerHeight - H) > 140) build(); }, 200); });
+    addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (Math.abs(innerWidth - W) > 40 || Math.abs(innerHeight - H) > 140) { build(); if (still()) draw(0); } }, 200); });
     document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
-    new MutationObserver(paintBase).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintBase);
-    reduce.addEventListener('change', () => { if (still()) { stop(); paintBase(); } else start(); });
-    // The network answers the pointer: the nearest node sends out a signal.
+    const recolor = () => { readColors(); if (still()) draw(0); };
+    new MutationObserver(recolor).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+    reduce.addEventListener('change', () => { if (still()) { stop(); draw(0); } else start(); });
     addEventListener('pointermove', e => {
-      if (still() || e.pointerType === 'touch') return;
-      const now = performance.now();
-      if (now - (mind.t || 0) < 140) return; mind.t = now;
-      let best = null, bd = 150 * 150;
-      for (const n of nodes) { const d = (n.x - e.clientX) ** 2 + (n.y - e.clientY) ** 2; if (d < bd) { bd = d; best = n; } }
-      if (best) fire(best, 1);
+      if (e.pointerType === 'touch') return;
+      ptr.x = e.clientX; ptr.y = e.clientY; ptr.on = true;
     }, { passive: true });
+    document.addEventListener('pointerleave', () => { ptr.on = false; });
+    addEventListener('blur', () => { ptr.on = false; });
     addEventListener('pointerdown', e => {
       if (still()) return;
-      let best = null, bd = 220 * 220;
+      let best = null, bd = 240 * 240;
       for (const n of nodes) { const d = (n.x - e.clientX) ** 2 + (n.y - e.clientY) ** 2; if (d < bd) { bd = d; best = n; } }
-      if (best) { fire(best, 0); fire(best, 0); fire(best, 0); }
+      if (best) { best.glow = 1; fire(best, 0); fire(best, 0); fire(best, 0); }
     }, { passive: true });
   })();
 

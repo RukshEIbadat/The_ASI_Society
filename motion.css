@@ -101,13 +101,24 @@ html.motion .path li.lit::before { background: var(--signal); border-color: var(
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
 
-/* 10. Background: a living circuit mind. Signals travel between nodes
-       like thoughts, and the network wakes up around the pointer. */
-.mind {
-  position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%;
-  pointer-events: none; opacity: 0; transition: opacity 1.2s ease;
-  -webkit-mask-image: radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,.35) 0, #000 70%);
-  mask-image: radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,.35) 0, #000 70%);
+/* 10. Background: a drifting neural constellation over a slow aurora. */
+.mind, .aurora { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.4s ease; }
+.mind { width: 100%; height: 100%;
+  -webkit-mask-image: radial-gradient(90% 75% at 50% 42%, rgba(0,0,0,.45) 0, #000 75%);
+  mask-image: radial-gradient(90% 75% at 50% 42%, rgba(0,0,0,.45) 0, #000 75%); }
+.mind.on, .aurora.on { opacity: 1; }
+.aurora { overflow: hidden; }
+.aurora span { position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%; will-change: transform;
+  background: radial-gradient(circle, color-mix(in srgb, var(--signal) 13%, transparent) 0, transparent 62%); }
+.aurora span:nth-child(1) { left: -22vmax; top: -30vmax; }
+.aurora span:nth-child(2) { right: -28vmax; top: 18vh; background: radial-gradient(circle, color-mix(in srgb, var(--brain-ink) 10%, transparent) 0, transparent 62%); }
+.aurora span:nth-child(3) { left: 20vw; bottom: -40vmax; background: radial-gradient(circle, color-mix(in srgb, #7C9CFF 16%, transparent) 0, transparent 62%); }
+@media (prefers-reduced-motion: no-preference) {
+  .aurora span:nth-child(1) { animation: drift1 38s ease-in-out infinite alternate; }
+  .aurora span:nth-child(2) { animation: drift2 46s ease-in-out infinite alternate; }
+  .aurora span:nth-child(3) { animation: drift3 52s ease-in-out infinite alternate; }
 }
-.mind.on { opacity: 1; }
-@media print { .mind { display: none; } }
+@keyframes drift1 { to { transform: translate(18vw, 14vh) scale(1.12); } }
+@keyframes drift2 { to { transform: translate(-16vw, 10vh) scale(.9); } }
+@keyframes drift3 { to { transform: translate(-12vw, -12vh) scale(1.15); } }
+@media print { .mind, .aurora { display: none; } }
