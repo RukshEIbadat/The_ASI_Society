@@ -1,13 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Same name as the live Worker, so this deploy updates it in place and the domain stays attached.
-  "name": "bold-bonus-e3a5",
-  "main": "src/worker.js",
+  // Must match the Worker that this GitHub repo is connected to.
+  "name": "the-asi-society",
+  "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "workers_dev": false,
   "preview_urls": false,
+  // The files sit in the repo root. .assetsignore keeps the code and config private.
   "assets": {
-    "directory": "./site",
+    "directory": ".",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "run_worker_first": ["/api/*"]
