@@ -1,0 +1,113 @@
+/* The ASI Society motion layer. Every effect here is an enhancement:
+   the pages read and work fully without it, and it switches off when
+   the visitor asks for reduced motion. */
+
+/* 1. Page to page: the bar stays put, the page underneath lifts away
+      and the next one rises in. Chromium 126+ and Safari 18.2+. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+.nav { view-transition-name: site-nav; }
+::view-transition-group(site-nav) { z-index: 10; }
+::view-transition-old(root) { animation: 260ms cubic-bezier(.4,0,1,1) both vt-leave; }
+::view-transition-new(root) { animation: 520ms cubic-bezier(.16,1,.3,1) 60ms both vt-enter; }
+@keyframes vt-leave { to { opacity: 0; transform: translateY(-14px) scale(.992); filter: blur(3px); } }
+@keyframes vt-enter { from { opacity: 0; transform: translateY(22px); } }
+
+/* 2. Theme switch: the new theme spreads out as a circle from the button. */
+html.vt-theme .nav { view-transition-name: none; }
+html.vt-theme::view-transition-old(root) { animation: none; }
+html.vt-theme::view-transition-new(root) {
+  animation: 620ms cubic-bezier(.65,0,.35,1) both vt-theme;
+  mix-blend-mode: normal;
+}
+@keyframes vt-theme {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0)); }
+  to   { clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 0)); }
+}
+
+/* 3. Tabs: one glass lozenge glides to whichever tab you point at,
+      and settles back on the page you are on. */
+.nav__links { position: relative; isolation: isolate; }
+.nav__links.has-ind a[aria-current] { background: transparent; box-shadow: none; }
+.nav__ind {
+  position: absolute; z-index: -1; top: 0; left: 0; height: 100%;
+  width: var(--w, 0); transform: translateX(var(--x, 0));
+  border-radius: 999px; opacity: var(--o, 0);
+  background: var(--glass-hi);
+  box-shadow: inset 0 0 0 1px var(--glass-line), inset 0 1px 0 var(--glass-edge), 0 6px 16px -10px var(--glass-shadow);
+  transition: transform .45s cubic-bezier(.2,.9,.2,1.15), width .45s cubic-bezier(.2,.9,.2,1.15), opacity .25s;
+  pointer-events: none;
+}
+.nav__links a { transition: color .2s; }
+
+/* 4. Reading progress: a signal trace with a live node at its tip. */
+.trace {
+  position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: 3px; z-index: 60;
+  pointer-events: none; transform-origin: 0 50%; transform: scaleX(var(--p, 0));
+  background: linear-gradient(90deg, var(--brain-ink), var(--signal));
+}
+.trace::after {
+  content: ""; position: absolute; right: -4px; top: 50%; width: 9px; height: 9px; border-radius: 50%;
+  transform: translateY(-50%) scaleX(calc(1 / max(var(--p, 1), .001)));
+  background: var(--signal); box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 22%, transparent), 0 0 14px var(--signal);
+}
+
+/* 5. Reveals: content lifts out of a mask as it scrolls into view, in order. */
+html.motion .rv {
+  opacity: 0; transform: translateY(26px); clip-path: inset(0 0 18% 0 round 12px);
+  transition: opacity .7s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1), clip-path .9s cubic-bezier(.16,1,.3,1);
+  transition-delay: calc(var(--i, 0) * 70ms);
+}
+html.motion .rv.in { opacity: 1; transform: none; clip-path: inset(0 0 0 0 round 12px); }
+
+/* 6. Headlines arrive word by word, each rising from behind a baseline. */
+.split .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+.split .w > span { display: inline-block; }
+html.motion .split .w > span { transform: translateY(105%); animation: word-in .9s cubic-bezier(.16,1,.3,1) forwards; animation-delay: calc(120ms + var(--i, 0) * 60ms); }
+@keyframes word-in { to { transform: none; } }
+
+/* 7. Timelines draw themselves as you read down them. */
+html.motion .path::after {
+  content: ""; position: absolute; left: 9px; top: 8px; width: 2px; height: calc(100% - 16px);
+  background: linear-gradient(var(--brain-ink), var(--signal)); transform-origin: top; transform: scaleY(var(--draw, 0));
+}
+html.motion .path li::before { transition: background .4s, border-color .4s, box-shadow .4s; }
+html.motion .path li.lit::before { background: var(--signal); border-color: var(--signal); }
+
+/* 8. Portraits lean toward the pointer, with light moving across the glass. */
+.tilt { transform-style: preserve-3d; transition: transform .6s cubic-bezier(.16,1,.3,1); will-change: transform; }
+.tilt.is-tilting { transition: transform .12s linear; }
+.tilt .glare {
+  position: absolute; inset: 10px; border-radius: 24px; pointer-events: none; opacity: 0; transition: opacity .4s;
+  background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 0%), rgba(255,255,255,.34), transparent 45%);
+  mix-blend-mode: soft-light;
+}
+.tilt.is-tilting .glare { opacity: 1; }
+
+/* 9. Primary buttons carry a sheen that sweeps across on hover. */
+@media (hover: hover) {
+  .btn--primary { position: relative; overflow: hidden; }
+  .btn--primary::after {
+    content: ""; position: absolute; inset: 0; transform: translateX(-120%) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  }
+  .btn--primary:hover::after { transform: translateX(120%) skewX(-18deg); transition: transform .75s cubic-bezier(.16,1,.3,1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace, .nav__ind, .tilt .glare { display: none; }
+  .tilt { transform: none !important; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
+
+/* 10. Background: a living circuit mind. Signals travel between nodes
+       like thoughts, and the network wakes up around the pointer. */
+.mind {
+  position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0; transition: opacity 1.2s ease;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,.35) 0, #000 70%);
+  mask-image: radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,.35) 0, #000 70%);
+}
+.mind.on { opacity: 1; }
+@media print { .mind { display: none; } }
